@@ -16,11 +16,8 @@ import (
 )
 
 func isNormalized(x *Int) bool {
-	if len(x.abs) == 0 {
-		return !x.neg
-	}
-	// len(x.abs) > 0
-	return x.abs[len(x.abs)-1] != 0
+	// Assume gmp knows what it is doing!
+	return true
 }
 
 type funZZ func(z, x, y *Int) *Int
@@ -173,6 +170,28 @@ func TestMul(t *testing.T) {
 	if err := quick.Check(checkMul, nil); err != nil {
 		t.Error(err)
 	}
+}
+
+var mulRangesN = []struct {
+	a, b uint64
+	prod string
+}{
+	{0, 0, "0"},
+	{1, 1, "1"},
+	{1, 2, "2"},
+	{1, 3, "6"},
+	{10, 10, "10"},
+	{0, 100, "0"},
+	{0, 1e9, "0"},
+	{1, 0, "1"},                    // empty range
+	{100, 1, "1"},                  // empty range
+	{1, 10, "3628800"},             // 10!
+	{1, 20, "2432902008176640000"}, // 20!
+	{1, 100,
+		"933262154439441526816992388562667004907159682643816214685929" +
+			"638952175999932299156089414639761565182862536979208272237582" +
+			"51185210916864000000000000000000000000", // 100!
+	},
 }
 
 var mulRangesZ = []struct {
@@ -349,7 +368,7 @@ var formatTests = []struct {
 }{
 	{"<nil>", "%x", "<nil>"},
 	{"<nil>", "%#x", "<nil>"},
-	{"<nil>", "%#y", "%!y(big.Int=<nil>)"},
+	{"<nil>", "%#y", "%!y(gmp.Int=<nil>)"},
 
 	{"10", "%b", "1010"},
 	{"10", "%o", "12"},
@@ -358,8 +377,8 @@ var formatTests = []struct {
 	{"10", "%x", "a"},
 	{"10", "%X", "A"},
 	{"-10", "%X", "-A"},
-	{"10", "%y", "%!y(big.Int=10)"},
-	{"-10", "%y", "%!y(big.Int=-10)"},
+	{"10", "%y", "%!y(gmp.Int=10)"},
+	{"-10", "%y", "%!y(gmp.Int=-10)"},
 
 	{"10", "%#b", "1010"},
 	{"10", "%#o", "012"},
@@ -368,8 +387,8 @@ var formatTests = []struct {
 	{"10", "%#x", "0xa"},
 	{"10", "%#X", "0XA"},
 	{"-10", "%#X", "-0XA"},
-	{"10", "%#y", "%!y(big.Int=10)"},
-	{"-10", "%#y", "%!y(big.Int=-10)"},
+	{"10", "%#y", "%!y(gmp.Int=10)"},
+	{"-10", "%#y", "%!y(gmp.Int=-10)"},
 
 	{"1234", "%d", "1234"},
 	{"1234", "%3d", "1234"},
@@ -656,7 +675,7 @@ func checkQuo(x, y []byte) bool {
 	u := new(Int).SetBytes(x)
 	v := new(Int).SetBytes(y)
 
-	if len(v.abs) == 0 {
+	if v.Sign() == 0 {
 		return true
 	}
 
@@ -716,19 +735,31 @@ func TestQuoStepD6(t *testing.T) {
 	// See Knuth, Volume 2, section 4.3.1, exercise 21. This code exercises
 	// a code path which only triggers 1 in 10^{-19} cases.
 
-	u := &Int{false, nat{0, 0, 1 + 1<<(_W-1), _M ^ (1 << (_W - 1))}}
-	v := &Int{false, nat{5, 2 + 1<<(_W-1), 1 << (_W - 1)}}
+	//u := &Int{false, nat{0, 0, 1 + 1<<(_W-1), _M ^ (1 << (_W - 1))}}
+	//v := &Int{false, nat{5, 2 + 1<<(_W-1), 1 << (_W - 1)}}
 
-	r := new(Int)
-	q, r := new(Int).QuoRem(u, v, r)
-	const expectedQ64 = "18446744073709551613"
-	const expectedR64 = "3138550867693340382088035895064302439801311770021610913807"
-	const expectedQ32 = "4294967293"
-	const expectedR32 = "39614081266355540837921718287"
-	if q.String() != expectedQ64 && q.String() != expectedQ32 ||
-		r.String() != expectedR64 && r.String() != expectedR32 {
-		t.Errorf("got (%s, %s) want (%s, %s) or (%s, %s)", q, r, expectedQ64, expectedR64, expectedQ32, expectedR32)
+	test := func(u, v *Int) {
+		r := new(Int)
+		q, r := new(Int).QuoRem(u, v, r)
+		const expectedQ64 = "18446744073709551613"
+		const expectedR64 = "3138550867693340382088035895064302439801311770021610913807"
+		const expectedQ32 = "4294967293"
+		const expectedR32 = "39614081266355540837921718287"
+		if q.String() != expectedQ64 && q.String() != expectedQ32 ||
+			r.String() != expectedR64 && r.String() != expectedR32 {
+			t.Errorf("got (%s, %s) want (%s, %s) or (%s, %s)", q, r, expectedQ64, expectedR64, expectedQ32, expectedR32)
+		}
 	}
+
+	// 32 bit test vectors
+	u, _ := new(Int).SetString("170141183420855150493001878992821682176", 10)
+	v, _ := new(Int).SetString("39614081266355540842216685573", 10)
+	test(u, v)
+
+	// 64 bit test vectors
+	u, _ = new(Int).SetString("57896044618658097708646941636650613545057379988137387275140988889156315774976", 10)
+	v, _ = new(Int).SetString("3138550867693340382088035895064302439819758514095320465413", 10)
+	test(u, v)
 }
 
 var bitLenTests = []struct {
@@ -821,7 +852,8 @@ func TestExp(t *testing.T) {
 		if m == nil {
 			// the result should be the same as for m == 0;
 			// specifically, there should be no div-zero panic
-			m = &Int{abs: nat{}} // m != nil && len(m.abs) == 0
+			// m = &Int{abs: nat{}} // m != nil && len(m.abs) == 0
+			m := NewInt(0)
 			z2 := new(Int).Exp(x, y, m)
 			if z2.Cmp(z1) != 0 {
 				t.Errorf("#%d: got %s want %s", i, z1, z2)
@@ -891,10 +923,11 @@ func testGcd(t *testing.T, d, x, y, a, b *Int) {
 		return
 	}
 
-	D.binaryGCD(a, b)
-	if D.Cmp(d) != 0 {
-		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, D, d)
-	}
+	// FIXME
+	// D.binaryGCD(a, b)
+	// if D.Cmp(d) != 0 {
+	// 	t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, D, d)
+	// }
 }
 
 func TestGcd(t *testing.T) {
@@ -1506,4 +1539,47 @@ func TestIssue2607(t *testing.T) {
 	// This code sequence used to hang.
 	n := NewInt(10)
 	n.Rand(rand.New(rand.NewSource(9)), n)
+}
+
+func TestRand(t *testing.T) {
+	z := new(Int)
+	n := new(Int)
+	rnd := rand.New(rand.NewSource(9))
+	// Check distribution for small numbers
+	for j := int64(1); j <= 256; j++ {
+		n.SetInt64(j)
+		m := make(map[int64]bool)
+		for i := int64(0); i < 10*j; i++ {
+			z.Rand(rnd, n)
+			k := z.Int64()
+			if k < 0 || k > j {
+				t.Errorf("Out of range for for j=%d", j)
+			}
+			m[k] = true
+			if len(m) >= int(j) {
+				goto ok
+			}
+		}
+		t.Errorf("Failed for for j=%d", j)
+	ok:
+	}
+	// Now test some bigger numbers
+	n.SetString("100000000000000000000000000000000000000000000000000", 10)
+	short := 0
+	const N = 100
+	for i := 0; i < N; i++ {
+		z.Rand(rnd, n)
+		if z.Cmp(n) >= 0 {
+			t.Errorf("Too big %d", z)
+		}
+		if len(z.String()) != 50 {
+			short++
+		}
+	}
+	// Short numbers should happen about 1 in 10 times
+	// So expect about 10 in 100
+	// 30 in 100 is very unlikely
+	if short > N/3 {
+		t.Errorf("Too many short numbers %d/%d", short, N)
+	}
 }
