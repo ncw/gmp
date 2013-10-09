@@ -102,16 +102,34 @@ func (x *Int) Sign() int {
 // SetInt64 sets z to x and returns z.
 func (z *Int) SetInt64(x int64) *Int {
 	z.doinit()
-	// TODO(rsc): more work on 32-bit platforms
-	C.mpz_set_si(&z.i[0], C.long(x))
+	// Test for truncation
+	y := C.long(x)
+	if int64(y) == x {
+		C.mpz_set_si(&z.i[0], y)
+	} else {
+		negative := false
+		if x < 0 {
+			x = -x
+			negative = true
+		}
+		C.mpz_import(&z.i[0], 1, 0, 8, 0, 0, unsafe.Pointer(&x))
+		if negative {
+			C.mpz_neg(&z.i[0], &z.i[0])
+		}
+	}
 	return z
 }
 
 // SetUint64 sets z to x and returns z.
 func (z *Int) SetUint64(x uint64) *Int {
 	z.doinit()
-	// TODO(ncw): more work on 32-bit platforms
-	C.mpz_set_ui(&z.i[0], C.ulong(x))
+	// Test for truncation
+	y := C.ulong(x)
+	if uint64(y) == x {
+		C.mpz_set_ui(&z.i[0], y)
+	} else {
+		C.mpz_import(&z.i[0], 1, 0, 8, 0, 0, unsafe.Pointer(&x))
+	}
 	return z
 }
 
@@ -569,22 +587,39 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 
 // Int64 returns the int64 representation of x.
 // If x cannot be represented in an int64, the result is undefined.
-func (x *Int) Int64() int64 {
+func (x *Int) Int64() (y int64) {
 	if !x.init {
-		return 0
+		return
 	}
-	// FIXME 32 bit
-	return int64(C.mpz_get_si(&x.i[0]))
+	if C.mpz_fits_slong_p(&x.i[0]) != 0 {
+		return int64(C.mpz_get_si(&x.i[0]))
+	}
+	// Undefined result if > 64 bits
+	if x.BitLen() > 64 {
+		return
+	}
+	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &x.i[0])
+	if x.Sign() < 0 {
+		y = -y
+	}
+	return
 }
 
 // Uint64 returns the uint64 representation of x.
 // If x cannot be represented in a uint64, the result is undefined.
-func (x *Int) Uint64() uint64 {
+func (x *Int) Uint64() (y uint64) {
 	if !x.init {
-		return 0
+		return
 	}
-	// FIXME 32 bit platform ?
-	return uint64(C.mpz_get_ui(&x.i[0]))
+	if C.mpz_fits_ulong_p(&x.i[0]) != 0 {
+		return uint64(C.mpz_get_ui(&x.i[0]))
+	}
+	// Undefined result if > 64 bits
+	if x.BitLen() > 64 {
+		return
+	}
+	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &x.i[0])
+	return
 }
 
 // SetString sets z to the value of s, interpreted in the given base,

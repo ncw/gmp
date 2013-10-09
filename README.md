@@ -18,6 +18,7 @@ doing the following to it
 * Bug fixes for existing implementations
 * Making it passes the test suite from src/pkg/math/big/int_test.go
 * Adding memory management
+* Fix problems on 32 bit platforms when using `int64` values which don't fit into a `C.long`
 
 See here for package docs
 
@@ -66,7 +67,6 @@ Bugs
 
 * Only implements `big.Int` not `big.Rat` yet
 * `Int.Bits` and `Int.SetBits` not implemented
-* Problems on 32 bit platforms when using `int64` values which don't fit into a `C.long`
 
 License
 -------
