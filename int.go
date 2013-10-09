@@ -22,9 +22,18 @@ void _mpz_mul_2exp(mpz_ptr a, mpz_ptr b, unsigned long n) {
 void _mpz_div_2exp(mpz_ptr a, mpz_ptr b, unsigned long n) {
 	mpz_div_2exp(a, b, n);
 }
+unsigned int _mpz_tstbit(mpz_ptr a, unsigned long n) {
+	return mpz_tstbit(a, n);
+}
+void _mpz_clrbit(mpz_ptr a, unsigned long n) {
+	mpz_clrbit(a, n);
+}
+void _mpz_setbit(mpz_ptr a, unsigned long n) {
+	mpz_setbit(a, n);
+}
 
 // Macros made into functions
-int macro_mpz_sgn(mpz_t op) {
+int _mpz_sgn(mpz_t op) {
 	return mpz_sgn(op);
 }
 */
@@ -87,7 +96,7 @@ func (z *Int) Clear() {
 //	+1 if x >  0
 //
 func (x *Int) Sign() int {
-	return int(C.macro_mpz_sgn(&x.i[0]))
+	return int(C._mpz_sgn(&x.i[0]))
 }
 
 // SetInt64 sets z to x and returns z.
@@ -773,7 +782,7 @@ func (z *Int) Rsh(x *Int, n uint) *Int {
 // returns (x>>i)&1. The bit index i must be >= 0.
 func (x *Int) Bit(i int) uint {
 	x.doinit()
-	return uint(C.mpz_tstbit(&x.i[0], C.mp_bitcnt_t(i)))
+	return uint(C._mpz_tstbit(&x.i[0], C.ulong(i)))
 }
 
 // SetBit sets z to x, with x's i'th bit set to b (0 or 1).
@@ -785,9 +794,9 @@ func (z *Int) SetBit(x *Int, i int, b uint) *Int {
 		z.Set(x)
 	}
 	if b == 0 {
-		C.mpz_clrbit(&z.i[0], C.mp_bitcnt_t(i))
+		C._mpz_clrbit(&z.i[0], C.ulong(i))
 	} else {
-		C.mpz_setbit(&z.i[0], C.mp_bitcnt_t(i))
+		C._mpz_setbit(&z.i[0], C.ulong(i))
 	}
 	return z
 }
