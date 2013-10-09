@@ -22,7 +22,9 @@ doing the following to it
 
 See here for package docs
 
-  http://go.pkgdoc.org/github.com/ncw/gmp
+* http://go.pkgdoc.org/github.com/ncw/gmp
+
+[![Build Status](https://travis-ci.org/ncw/gmp.png)](https://travis-ci.org/ncw/gmp)
 
 Install
 -------
