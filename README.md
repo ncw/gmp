@@ -5,7 +5,7 @@ This package provides a drop in replacement for Go's built in
 [math/big](http://golang.org/pkg/math/big/) big integer package using
 the [GNU Multiprecision Library](http://gmplib.org/) (GMP).
 
-GMP is very much faster than Go's math/big however it is an internal
+GMP is very much faster than Go's math/big however it is an external C
 library with all the problems that entails (cgo, dependencies etc)
 
 This library was made by taking the [cgo example of wrapping
