@@ -546,7 +546,7 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 		if err != nil {
 			return err
 		}
-		if n != 1 {
+		if n > 1 {
 			// Wide character - must be the end
 			s.UnreadRune()
 			break
