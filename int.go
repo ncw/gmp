@@ -96,6 +96,7 @@ func (z *Int) Clear() {
 //	+1 if x >  0
 //
 func (x *Int) Sign() int {
+	x.doinit()
 	return int(C._mpz_sgn(&x.i[0]))
 }
 
