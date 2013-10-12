@@ -50,6 +50,13 @@ import (
 	"unsafe"
 )
 
+// Some definited Ints for internal use only
+var (
+	_Int_0  = NewInt(0)
+	_Int_1  = NewInt(1)
+	_Int_10 = NewInt(10)
+)
+
 // An Int represents a signed multi-precision integer.
 // The zero value for an Int represents the value 0.
 type Int struct {
@@ -359,6 +366,8 @@ func (z *Int) DivMod(x, y, m *Int) (*Int, *Int) {
 //   +1 if x >  y
 //
 func (x *Int) Cmp(y *Int) (r int) {
+	x.doinit()
+	y.doinit()
 	r = int(C.mpz_cmp(&x.i[0], &y.i[0]))
 	if r < 0 {
 		r = -1
@@ -725,12 +734,12 @@ func (z *Int) GCD(x, y, a, b *Int) *Int {
 		if x != nil {
 			x.doinit()
 		} else {
-			x = NewInt(0)
+			x = _Int_0
 		}
 		if y != nil {
 			y.doinit()
 		} else {
-			y = NewInt(0)
+			y = _Int_0
 		}
 		C.mpz_gcdext(&z.i[0], &x.i[0], &y.i[0], &a.i[0], &b.i[0])
 	}
