@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package big
+package gmp
 
 import (
 	"bytes"
@@ -462,21 +462,21 @@ func TestIssue3521(t *testing.T) {
 
 	// 1a) a zero value remains zero independent of denominator
 	x := new(Rat)
-	x.Denom().Set(new(Int).Neg(b))
+	x.SetDenom(new(Int).Neg(b))
 	if x.Cmp(zero) != 0 {
 		t.Errorf("1a) got %s want %s", x, zero)
 	}
 
 	// 1b) a zero value may have a denominator != 0 and != 1
-	x.Num().Set(a)
-	qab := new(Rat).SetFrac(a, b)
+	x.SetNum(a)
+	qab := new(Rat).SetFrac(a, new(Int).Neg(b)) // FIXME -ve compared to math/big
 	if x.Cmp(qab) != 0 {
 		t.Errorf("1b) got %s want %s", x, qab)
 	}
 
 	// 2a) an integral value becomes a fraction depending on denominator
 	x.SetFrac64(10, 2)
-	x.Denom().SetInt64(3)
+	x.SetDenom(NewInt(3))
 	q53 := NewRat(5, 3)
 	if x.Cmp(q53) != 0 {
 		t.Errorf("2a) got %s want %s", x, q53)
@@ -484,17 +484,15 @@ func TestIssue3521(t *testing.T) {
 
 	// 2b) an integral value becomes a fraction depending on denominator
 	x = NewRat(10, 2)
-	x.Denom().SetInt64(3)
+	x.SetDenom(NewInt(3))
 	if x.Cmp(q53) != 0 {
 		t.Errorf("2b) got %s want %s", x, q53)
 	}
 
 	// 3) changing the numerator/denominator of a Rat changes the Rat
 	x.SetFrac(a, b)
-	a = x.Num()
-	b = x.Denom()
-	a.SetInt64(5)
-	b.SetInt64(3)
+	x.SetNum(NewInt(5))
+	x.SetDenom(NewInt(3))
 	if x.Cmp(q53) != 0 {
 		t.Errorf("3) got %s want %s", x, q53)
 	}
@@ -697,6 +695,12 @@ var float64inputs = []string{
 	"-1152921504606846977", // -(1<<60 + 1)
 
 	"1/3",
+}
+
+// isFinite reports whether f represents a finite rational value.
+// It is equivalent to !math.IsNan(f) && !math.IsInf(f, 0).
+func isFinite(f float64) bool {
+	return math.Abs(f) <= math.MaxFloat64
 }
 
 func TestFloat64SpecialCases(t *testing.T) {

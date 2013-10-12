@@ -19,6 +19,7 @@ doing the following to it
 * Making it passes the test suite from src/pkg/math/big/int_test.go
 * Adding memory management
 * Fix problems on 32 bit platforms when using `int64` values which don't fit into a `C.long`
+* Implementing Rat support making it pass src/pkg/math/big/rat_test.go
 
 See here for package docs
 
@@ -64,11 +65,15 @@ The tests have been copied from the tests for the math/big library in
 the Go source and modified as little as possible so it should be 100%
 compatible.
 
-Bugs
-----
+Differences
+-----------
 
-* Only implements `big.Int` not `big.Rat` yet
+Here are the differences between math/big and this package
+
 * `Int.Bits` and `Int.SetBits` not implemented
+* `Rat.Num()` and `Rat.Denom()` return a copy not a reference, so
+*  If you want to set them use the new methods `Rat.SetNum()` and `Rat.SetDenom()`
+
 
 License
 -------

@@ -4,23 +4,80 @@
 
 // This file implements multi-precision rational numbers.
 
-package big
+package gmp
+
+/*
+#include <gmp.h>
+#include <stdlib.h>
+
+// Macros
+int __mpq_sgn(mpq_ptr op) {
+	return mpq_sgn(op);
+}
+int __mpz_cmp_ui(mpz_ptr op, unsigned long n) {
+	return mpz_cmp_ui(op, n);
+}
+mpz_ptr _mpq_numref(mpq_t op) {
+    return mpq_numref(op);
+}
+mpz_ptr _mpq_denref(mpq_t op) {
+    return mpq_denref(op);
+}
+// Sign of the numerator
+int _mpq_num_sgn(mpq_t op) {
+	return mpz_sgn(mpq_numref(op));
+}
+
+*/
+import "C"
 
 import (
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"strings"
+	"unsafe"
 )
 
 // A Rat represents a quotient a/b of arbitrary precision.
 // The zero value for a Rat represents the value 0.
 type Rat struct {
-	// To make zero values for Rat work w/o initialization,
-	// a zero value of b (len(b) == 0) acts like b == 1.
-	// a.neg determines the sign of the Rat, b.neg is ignored.
-	a, b Int
+	i    C.mpq_t
+	init bool
+}
+
+// Finalizer - release the memory allocated to the mpz
+func _Rat_finalize(z *Rat) {
+	if z.init {
+		runtime.SetFinalizer(z, nil)
+		C.mpq_clear(&z.i[0])
+		z.init = false
+	}
+}
+
+// Rat promises that the zero value is a 0, but in gmp
+// the zero value is a crash.  To bridge the gap, the
+// init bool says whether this is a valid gmp value.
+// doinit initializes z.i if it needs it.
+func (z *Rat) doinit() {
+	if z.init {
+		return
+	}
+	z.init = true
+	C.mpq_init(&z.i[0])
+	runtime.SetFinalizer(z, _Rat_finalize)
+}
+
+// Clear the allocated space used by the number
+//
+// This normally happens on a runtime.SetFinalizer call, but if you
+// want immediate deallocation you can call it.
+//
+// NB This is not part of big.Rat
+func (z *Rat) Clear() {
+	_Rat_finalize(z)
 }
 
 // NewRat creates a new Rat with numerator a and denominator b.
@@ -31,67 +88,48 @@ func NewRat(a, b int64) *Rat {
 // SetFloat64 sets z to exactly f and returns z.
 // If f is not finite, SetFloat returns nil.
 func (z *Rat) SetFloat64(f float64) *Rat {
-	const expMask = 1<<11 - 1
-	bits := math.Float64bits(f)
-	mantissa := bits & (1<<52 - 1)
-	exp := int((bits >> 52) & expMask)
-	switch exp {
-	case expMask: // non-finite
+	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return nil
-	case 0: // denormal
-		exp -= 1022
-	default: // normal
-		mantissa |= 1 << 52
-		exp -= 1023
 	}
-
-	shift := 52 - exp
-
-	// Optimisation (?): partially pre-normalise.
-	for mantissa&1 == 0 && shift > 0 {
-		mantissa >>= 1
-		shift--
-	}
-
-	z.a.SetUint64(mantissa)
-	z.a.neg = f < 0
-	z.b.Set(intOne)
-	if shift > 0 {
-		z.b.Lsh(&z.b, uint(shift))
-	} else {
-		z.a.Lsh(&z.a, uint(-shift))
-	}
-	return z.norm()
+	z.doinit()
+	C.mpq_set_d(&z.i[0], C.double(f))
+	return z
 }
 
-// isFinite reports whether f represents a finite rational value.
-// It is equivalent to !math.IsNan(f) && !math.IsInf(f, 0).
-func isFinite(f float64) bool {
-	return math.Abs(f) <= math.MaxFloat64
+// Float64 returns the nearest float64 value for x and a bool indicating
+// whether f represents x exactly. If the magnitude of x is too large to
+// be represented by a float64, f is an infinity and exact is false.
+// The sign of f always matches the sign of x, even if f == 0.
+//
+// NB This uses GMP which is fast but rounds differently to Float64
+func (x *Rat) Float64Gmp() (f float64, exact bool) {
+	x.doinit()
+	f = float64(C.mpq_get_d(&x.i[0]))
+	if !(math.IsNaN(f) || math.IsInf(f, 0)) {
+		exact = new(Rat).SetFloat64(f).Cmp(x) == 0
+	}
+	return
 }
 
 // low64 returns the least significant 64 bits of natural number z.
-func low64(z nat) uint64 {
-	if len(z) == 0 {
-		return 0
-	}
-	if _W == 32 && len(z) > 1 {
-		return uint64(z[1])<<32 | uint64(z[0])
-	}
-	return uint64(z[0])
+func low64(z *Int) uint64 {
+	// FIXME not wildy efficient!
+	t := new(Int).SetUint64(0xffffffffffffffff)
+	t.And(t, z)
+	return t.Uint64()
 }
 
 // quotToFloat returns the non-negative IEEE 754 double-precision
 // value nearest to the quotient a/b, using round-to-even in halfway
 // cases.  It does not mutate its arguments.
 // Preconditions: b is non-zero; a and b have no common factors.
-func quotToFloat(a, b nat) (f float64, exact bool) {
+func quotToFloat(a, b *Int) (f float64, exact bool) {
 	// TODO(adonovan): specialize common degenerate cases: 1.0, integers.
-	alen := a.bitLen()
+	alen := a.BitLen()
 	if alen == 0 {
 		return 0, true
 	}
-	blen := b.bitLen()
+	blen := b.BitLen()
 	if blen == 0 {
 		panic("division by zero")
 	}
@@ -103,22 +141,19 @@ func quotToFloat(a, b nat) (f float64, exact bool) {
 	// - the high-order 1 is omitted in float64 "normal" representation;
 	// - the low-order 1 will be used during rounding then discarded.
 	exp := alen - blen
-	var a2, b2 nat
-	a2 = a2.set(a)
-	b2 = b2.set(b)
+	a2, b2 := new(Int).Set(a), new(Int).Set(b)
 	if shift := 54 - exp; shift > 0 {
-		a2 = a2.shl(a2, uint(shift))
+		a2.Lsh(a2, uint(shift))
 	} else if shift < 0 {
-		b2 = b2.shl(b2, uint(-shift))
+		b2.Lsh(b2, uint(-shift))
 	}
 
 	// 2. Compute quotient and remainder (q, r).  NB: due to the
 	// extra shift, the low-order bit of q is logically the
 	// high-order bit of r.
-	var q nat
-	q, r := q.div(a2, a2, b2) // (recycle a2)
+	q, r := new(Int).DivMod(a2, b2, new(Int)) // (recycle a2)
 	mantissa := low64(q)
-	haveRem := len(r) > 0 // mantissa&1 && !haveRem => remainder is exactly half
+	haveRem := r.Sign() != 0 // mantissa&1 && !haveRem => remainder is exactly half
 
 	// 3. If quotient didn't fit in 54 bits, re-do division by b2<<1
 	// (in effect---we accomplish this incrementally).
@@ -168,98 +203,131 @@ func quotToFloat(a, b nat) (f float64, exact bool) {
 // be represented by a float64, f is an infinity and exact is false.
 // The sign of f always matches the sign of x, even if f == 0.
 func (x *Rat) Float64() (f float64, exact bool) {
-	b := x.b.abs
-	if len(b) == 0 {
-		b = b.set(natOne) // materialize denominator
+	a := x.Num()
+	negative := false
+	if a.Sign() < 0 {
+		a.Neg(a)
+		negative = true
 	}
-	f, exact = quotToFloat(x.a.abs, b)
-	if x.a.neg {
+	b := x.Denom()
+	f, exact = quotToFloat(a, b)
+	if negative {
 		f = -f
 	}
 	return
 }
 
+// SetNum sets the numerator of z returning z
+//
+// NB this isn't part of math/big which uses Num().Set() for this
+// purpose. In gmp Num() returns a copy hence the need for a SetNum()
+// method.
+func (z *Rat) SetNum(a *Int) *Rat {
+	z.doinit()
+	a.doinit()
+	C.mpq_set_num(&z.i[0], &a.i[0])
+	C.mpq_canonicalize(&z.i[0])
+	return z
+}
+
+// SetDenom sets the numerator of z returning z
+//
+// NB this isn't part of math/big which uses Num().Set() for this
+// purpose. In gmp Num() returns a copy hence the need for a SetNum()
+// method.
+func (z *Rat) SetDenom(a *Int) *Rat {
+	z.doinit()
+	a.doinit()
+	C.mpq_set_den(&z.i[0], &a.i[0])
+	// If numerator is zero don't canonicalize
+	if C._mpq_num_sgn(&z.i[0]) != 0 {
+		C.mpq_canonicalize(&z.i[0])
+	}
+	return z
+}
+
 // SetFrac sets z to a/b and returns z.
 func (z *Rat) SetFrac(a, b *Int) *Rat {
-	z.a.neg = a.neg != b.neg
-	babs := b.abs
-	if len(babs) == 0 {
-		panic("division by zero")
-	}
-	if &z.a == b || alias(z.a.abs, babs) {
-		babs = nat(nil).set(babs) // make a copy
-	}
-	z.a.abs = z.a.abs.set(a.abs)
-	z.b.abs = z.b.abs.set(babs)
-	return z.norm()
+	z.doinit()
+	a.doinit()
+	b.doinit()
+	// FIXME copying? or referencing?
+	C.mpq_set_num(&z.i[0], &a.i[0])
+	C.mpq_set_den(&z.i[0], &b.i[0])
+	C.mpq_canonicalize(&z.i[0])
+	return z
 }
 
 // SetFrac64 sets z to a/b and returns z.
 func (z *Rat) SetFrac64(a, b int64) *Rat {
-	z.a.SetInt64(a)
+	z.doinit()
 	if b == 0 {
 		panic("division by zero")
 	}
-	if b < 0 {
-		b = -b
-		z.a.neg = !z.a.neg
+	// Detect overflow if running on 32 bits
+	if a == int64(C.long(a)) && b == int64(C.long(b)) {
+		if b < 0 {
+			a = -a
+			b = -b
+		}
+		C.mpq_set_si(&z.i[0], C.long(a), C.ulong(b))
+		C.mpq_canonicalize(&z.i[0])
+		if b < 0 {
+			// This only happens when b = 1<<63
+			z.Neg(z)
+		}
+	} else {
+		// Slow path but will work on 32 bit architectures
+		z.SetFrac(NewInt(a), NewInt(b))
 	}
-	z.b.abs = z.b.abs.setUint64(uint64(b))
-	return z.norm()
+	return z
 }
 
 // SetInt sets z to x (by making a copy of x) and returns z.
 func (z *Rat) SetInt(x *Int) *Rat {
-	z.a.Set(x)
-	z.b.abs = z.b.abs.make(0)
+	z.doinit()
+	// FIXME copying? or referencing?
+	C.mpq_set_z(&z.i[0], &x.i[0])
 	return z
 }
 
 // SetInt64 sets z to x and returns z.
 func (z *Rat) SetInt64(x int64) *Rat {
-	z.a.SetInt64(x)
-	z.b.abs = z.b.abs.make(0)
+	z.SetFrac64(x, 1)
 	return z
 }
 
 // Set sets z to x (by making a copy of x) and returns z.
 func (z *Rat) Set(x *Rat) *Rat {
 	if z != x {
-		z.a.Set(&x.a)
-		z.b.Set(&x.b)
+		z.doinit()
+		C.mpq_set(&z.i[0], &x.i[0])
 	}
 	return z
 }
 
 // Abs sets z to |x| (the absolute value of x) and returns z.
 func (z *Rat) Abs(x *Rat) *Rat {
-	z.Set(x)
-	z.a.neg = false
+	z.doinit()
+	C.mpq_abs(&z.i[0], &x.i[0])
 	return z
 }
 
 // Neg sets z to -x and returns z.
 func (z *Rat) Neg(x *Rat) *Rat {
-	z.Set(x)
-	z.a.neg = len(z.a.abs) > 0 && !z.a.neg // 0 has no sign
+	z.doinit()
+	C.mpq_neg(&z.i[0], &x.i[0])
 	return z
 }
 
 // Inv sets z to 1/x and returns z.
 func (z *Rat) Inv(x *Rat) *Rat {
-	if len(x.a.abs) == 0 {
+	z.doinit()
+	x.doinit()
+	if x.Sign() == 0 {
 		panic("division by zero")
 	}
-	z.Set(x)
-	a := z.b.abs
-	if len(a) == 0 {
-		a = a.set(natOne) // materialize numerator
-	}
-	b := z.a.abs
-	if b.cmp(natOne) == 0 {
-		b = b.make(0) // normalize denominator
-	}
-	z.a.abs, z.b.abs = a, b // sign doesn't change
+	C.mpq_inv(&z.i[0], &x.i[0])
 	return z
 }
 
@@ -270,84 +338,43 @@ func (z *Rat) Inv(x *Rat) *Rat {
 //	+1 if x >  0
 //
 func (x *Rat) Sign() int {
-	return x.a.Sign()
+	x.doinit()
+	return int(C.__mpq_sgn(&x.i[0]))
 }
 
 // IsInt returns true if the denominator of x is 1.
 func (x *Rat) IsInt() bool {
-	return len(x.b.abs) == 0 || x.b.abs.cmp(natOne) == 0
+	x.doinit()
+	return C.__mpz_cmp_ui(C._mpq_denref(&x.i[0]), C.ulong(1)) == 0
 }
 
-// Num returns the numerator of x; it may be <= 0.
-// The result is a reference to x's numerator; it
-// may change if a new value is assigned to x, and vice versa.
-// The sign of the numerator corresponds to the sign of x.
+// Num returns the numerator of x; it may be <= 0.  The result is a
+// copy of x's numerator; it won't change if a new value is assigned
+// to x, and vice versa.  The sign of the numerator corresponds to the
+// sign of x.
+//
+// NB In math/big this is a reference to the numerator not a copy
 func (x *Rat) Num() *Int {
-	return &x.a
-}
-
-// Denom returns the denominator of x; it is always > 0.
-// The result is a reference to x's denominator; it
-// may change if a new value is assigned to x, and vice versa.
-func (x *Rat) Denom() *Int {
-	x.b.neg = false // the result is always >= 0
-	if len(x.b.abs) == 0 {
-		x.b.abs = x.b.abs.set(natOne) // materialize denominator
-	}
-	return &x.b
-}
-
-func (z *Rat) norm() *Rat {
-	switch {
-	case len(z.a.abs) == 0:
-		// z == 0 - normalize sign and denominator
-		z.a.neg = false
-		z.b.abs = z.b.abs.make(0)
-	case len(z.b.abs) == 0:
-		// z is normalized int - nothing to do
-	case z.b.abs.cmp(natOne) == 0:
-		// z is int - normalize denominator
-		z.b.abs = z.b.abs.make(0)
-	default:
-		neg := z.a.neg
-		z.a.neg = false
-		z.b.neg = false
-		if f := NewInt(0).binaryGCD(&z.a, &z.b); f.Cmp(intOne) != 0 {
-			z.a.abs, _ = z.a.abs.div(nil, z.a.abs, f.abs)
-			z.b.abs, _ = z.b.abs.div(nil, z.b.abs, f.abs)
-			if z.b.abs.cmp(natOne) == 0 {
-				// z is int - normalize denominator
-				z.b.abs = z.b.abs.make(0)
-			}
-		}
-		z.a.neg = neg
-	}
+	// Return an initialised *Int so we don't initialize or finalize it by accident
+	x.doinit()
+	z := new(Int)
+	z.doinit()
+	C.mpq_get_num(&z.i[0], &x.i[0])
 	return z
 }
 
-// mulDenom sets z to the denominator product x*y (by taking into
-// account that 0 values for x or y must be interpreted as 1) and
-// returns z.
-func mulDenom(z, x, y nat) nat {
-	switch {
-	case len(x) == 0:
-		return z.set(y)
-	case len(y) == 0:
-		return z.set(x)
-	}
-	return z.mul(x, y)
-}
-
-// scaleDenom computes x*f.
-// If f == 0 (zero value of denominator), the result is (a copy of) x.
-func scaleDenom(x *Int, f nat) *Int {
-	var z Int
-	if len(f) == 0 {
-		return z.Set(x)
-	}
-	z.abs = z.abs.mul(x.abs, f)
-	z.neg = x.neg
-	return &z
+// Denom returns the denominator of x; it is always > 0.  The result
+// is a copy of x's denominator; it won't change if a new value is
+// assigned to x, and vice versa.
+//
+// NB In math/big this is a reference to the denominator not a copy
+func (x *Rat) Denom() *Int {
+	// Return an initialised *Int so we don't initialize or finalize it by accident
+	x.doinit()
+	z := new(Int)
+	z.doinit()
+	C.mpq_get_den(&z.i[0], &x.i[0])
+	return z
 }
 
 // Cmp compares x and y and returns:
@@ -356,47 +383,56 @@ func scaleDenom(x *Int, f nat) *Int {
 //    0 if x == y
 //   +1 if x >  y
 //
-func (x *Rat) Cmp(y *Rat) int {
-	return scaleDenom(&x.a, y.b.abs).Cmp(scaleDenom(&y.a, x.b.abs))
+func (x *Rat) Cmp(y *Rat) (r int) {
+	x.doinit()
+	y.doinit()
+	r = int(C.mpq_cmp(&x.i[0], &y.i[0]))
+	if r < 0 {
+		r = -1
+	} else if r > 0 {
+		r = 1
+	}
+	return
 }
 
 // Add sets z to the sum x+y and returns z.
 func (z *Rat) Add(x, y *Rat) *Rat {
-	a1 := scaleDenom(&x.a, y.b.abs)
-	a2 := scaleDenom(&y.a, x.b.abs)
-	z.a.Add(a1, a2)
-	z.b.abs = mulDenom(z.b.abs, x.b.abs, y.b.abs)
-	return z.norm()
+	x.doinit()
+	y.doinit()
+	z.doinit()
+	C.mpq_add(&z.i[0], &x.i[0], &y.i[0])
+	return z
 }
 
 // Sub sets z to the difference x-y and returns z.
 func (z *Rat) Sub(x, y *Rat) *Rat {
-	a1 := scaleDenom(&x.a, y.b.abs)
-	a2 := scaleDenom(&y.a, x.b.abs)
-	z.a.Sub(a1, a2)
-	z.b.abs = mulDenom(z.b.abs, x.b.abs, y.b.abs)
-	return z.norm()
+	x.doinit()
+	y.doinit()
+	z.doinit()
+	C.mpq_sub(&z.i[0], &x.i[0], &y.i[0])
+	return z
 }
 
 // Mul sets z to the product x*y and returns z.
 func (z *Rat) Mul(x, y *Rat) *Rat {
-	z.a.Mul(&x.a, &y.a)
-	z.b.abs = mulDenom(z.b.abs, x.b.abs, y.b.abs)
-	return z.norm()
+	x.doinit()
+	y.doinit()
+	z.doinit()
+	C.mpq_mul(&z.i[0], &x.i[0], &y.i[0])
+	return z
 }
 
 // Quo sets z to the quotient x/y and returns z.
 // If y == 0, a division-by-zero run-time panic occurs.
 func (z *Rat) Quo(x, y *Rat) *Rat {
-	if len(y.a.abs) == 0 {
+	x.doinit()
+	y.doinit()
+	z.doinit()
+	if y.Sign() == 0 {
 		panic("division by zero")
 	}
-	a := scaleDenom(&x.a, y.b.abs)
-	b := scaleDenom(&y.a, x.b.abs)
-	z.a.abs = a.abs
-	z.b.abs = b.abs
-	z.a.neg = a.neg != b.neg
-	return z.norm()
+	C.mpq_div(&z.i[0], &x.i[0], &y.i[0])
+	return z
 }
 
 func ratTok(ch rune) bool {
@@ -427,26 +463,36 @@ func (z *Rat) SetString(s string) (*Rat, bool) {
 	if len(s) == 0 {
 		return nil, false
 	}
+	z.doinit()
+	a := new(Int)
+	b := new(Int)
 
 	// check for a quotient
 	sep := strings.Index(s, "/")
 	if sep >= 0 {
-		if _, ok := z.a.SetString(s[0:sep], 10); !ok {
+		// FIXME Num and Denom are bust
+		// if _, ok := z.Num().SetString(s[0:sep], 10); !ok {
+		// 	return nil, false
+		// }
+		// if _, ok := z.Denom().SetString(s[sep+1:], 10); !ok {
+		// 	return nil, false
+		// }
+		if _, ok := a.SetString(s[0:sep], 10); !ok {
 			return nil, false
 		}
-		s = s[sep+1:]
-		var err error
-		if z.b.abs, _, err = z.b.abs.scan(strings.NewReader(s), 10); err != nil {
+		if _, ok := b.SetString(s[sep+1:], 10); !ok {
 			return nil, false
 		}
-		return z.norm(), true
+		z.SetFrac(a, b)
+		C.mpq_canonicalize(&z.i[0])
+		return z, true
 	}
 
 	// check for a decimal point
 	sep = strings.Index(s, ".")
 	// check for an exponent
 	e := strings.IndexAny(s, "eE")
-	var exp Int
+	exp := new(Int)
 	if e >= 0 {
 		if e < sep {
 			// The E must come after the decimal point.
@@ -459,81 +505,95 @@ func (z *Rat) SetString(s string) (*Rat, bool) {
 	}
 	if sep >= 0 {
 		s = s[0:sep] + s[sep+1:]
-		exp.Sub(&exp, NewInt(int64(len(s)-sep)))
+		exp.Sub(exp, NewInt(int64(len(s)-sep)))
 	}
 
-	if _, ok := z.a.SetString(s, 10); !ok {
+	if _, ok := a.SetString(s, 10); !ok {
 		return nil, false
 	}
-	powTen := nat(nil).expNN(natTen, exp.abs, nil)
-	if exp.neg {
-		z.b.abs = powTen
-		z.norm()
+	absExp := new(Int).Abs(exp)
+	powTen := new(Int).Exp(_Int_10, absExp, nil)
+	if exp.Sign() < 0 {
+		b = powTen
 	} else {
-		z.a.abs = z.a.abs.mul(z.a.abs, powTen)
-		z.b.abs = z.b.abs.make(0)
+		a.Mul(a, powTen)
+		b.SetInt64(1)
 	}
+	z.SetFrac(a, b)
+	C.mpq_canonicalize(&z.i[0])
 
 	return z, true
 }
 
+// string returns z in the base given
+func (z *Rat) string(base int) string {
+	if z == nil {
+		return "<nil>"
+	}
+	z.doinit()
+	p := C.mpq_get_str(nil, C.int(base), &z.i[0])
+	s := C.GoString(p)
+	C.free(unsafe.Pointer(p))
+	return s
+}
+
 // String returns a string representation of z in the form "a/b" (even if b == 1).
 func (x *Rat) String() string {
-	s := "/1"
-	if len(x.b.abs) != 0 {
-		s = "/" + x.b.abs.decimalString()
+	s := x.string(10)
+	if !strings.Contains(s, "/") {
+		s += "/1"
 	}
-	return x.a.String() + s
+	return s
 }
 
 // RatString returns a string representation of z in the form "a/b" if b != 1,
 // and in the form "a" if b == 1.
 func (x *Rat) RatString() string {
-	if x.IsInt() {
-		return x.a.String()
-	}
-	return x.String()
+	return x.string(10)
 }
 
 // FloatString returns a string representation of z in decimal form with prec
 // digits of precision after the decimal point and the last digit rounded.
 func (x *Rat) FloatString(prec int) string {
 	if x.IsInt() {
-		s := x.a.String()
+		s := x.string(10)
 		if prec > 0 {
 			s += "." + strings.Repeat("0", prec)
 		}
 		return s
 	}
-	// x.b.abs != 0
 
-	q, r := nat(nil).div(nat(nil), x.a.abs, x.b.abs)
+	a := x.Num()
+	a.Abs(a)
+	b := x.Denom()
+	q, r := new(Int).DivMod(a, b, new(Int))
 
-	p := natOne
+	p := _Int_1
 	if prec > 0 {
-		p = nat(nil).expNN(natTen, nat(nil).setUint64(uint64(prec)), nil)
+		p = new(Int).Exp(_Int_10, NewInt(int64(prec)), nil)
 	}
 
-	r = r.mul(r, p)
-	r, r2 := r.div(nat(nil), r, x.b.abs)
+	r.Mul(r, p)
+	r2 := new(Int)
+	r.DivMod(r, b, r2)
 
 	// see if we need to round up
-	r2 = r2.add(r2, r2)
-	if x.b.abs.cmp(r2) <= 0 {
-		r = r.add(r, natOne)
-		if r.cmp(p) >= 0 {
-			q = nat(nil).add(q, natOne)
-			r = nat(nil).sub(r, p)
+	r2.Add(r2, r2)
+	if b.Cmp(r2) <= 0 {
+		r.Add(r, _Int_1)
+		if r.Cmp(p) >= 0 {
+			q.Add(q, _Int_1)
+			r.Sub(r, p)
 		}
 	}
 
-	s := q.decimalString()
-	if x.a.neg {
+	s := q.string(10)
+	if x.Sign() < 0 {
 		s = "-" + s
 	}
 
 	if prec > 0 {
-		rs := r.decimalString()
+		rs := r.string(10)
 		leadingZeros := prec - len(rs)
 		s += "." + strings.Repeat("0", leadingZeros) + rs
 	}
@@ -546,22 +606,24 @@ const ratGobVersion byte = 1
 
 // GobEncode implements the gob.GobEncoder interface.
 func (x *Rat) GobEncode() ([]byte, error) {
-	buf := make([]byte, 1+4+(len(x.a.abs)+len(x.b.abs))*_S) // extra bytes for version and sign bit (1), and numerator length (4)
-	i := x.b.abs.bytes(buf)
-	j := x.a.abs.bytes(buf[0:i])
-	n := i - j
+	bufa := x.Num().Bytes()
+	bufb := x.Denom().Bytes()
+	buf := make([]byte, 1+4) // extra bytes for version and sign bit (1), and numerator length (4)
+	buf = append(buf, bufa...)
+	buf = append(buf, bufb...)
+	const j = 1 + 4
+	n := len(bufa)
 	if int(uint32(n)) != n {
 		// this should never happen
 		return nil, errors.New("Rat.GobEncode: numerator too large")
 	}
-	binary.BigEndian.PutUint32(buf[j-4:j], uint32(n))
-	j -= 1 + 4
+	binary.BigEndian.PutUint32(buf[1:5], uint32(n))
 	b := ratGobVersion << 1 // make space for sign bit
-	if x.a.neg {
+	if x.Sign() < 0 {
 		b |= 1
 	}
-	buf[j] = b
-	return buf[j:], nil
+	buf[0] = b
+	return buf, nil
 }
 
 // GobDecode implements the gob.GobDecoder interface.
@@ -575,8 +637,11 @@ func (z *Rat) GobDecode(buf []byte) error {
 	}
 	const j = 1 + 4
 	i := j + binary.BigEndian.Uint32(buf[j-4:j])
-	z.a.neg = b&1 != 0
-	z.a.abs = z.a.abs.setBytes(buf[j:i])
-	z.b.abs = z.b.abs.setBytes(buf[i:])
+	num := new(Int).SetBytes(buf[j:i])
+	den := new(Int).SetBytes(buf[i:])
+	if b&1 != 0 {
+		num.Neg(num)
+	}
+	z.SetFrac(num, den)
 	return nil
 }
