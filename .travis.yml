@@ -10,4 +10,4 @@ before_install:
   - sudo apt-get install libgmp-dev -qq > apt-get.out 2>&1 || (cat apt-get.out && exit 1)
 
 script:
-  - go test
+  - go test -short
