@@ -96,7 +96,7 @@ func (z *Rat) SetFloat64(f float64) *Rat {
 	return z
 }
 
-// Float64 returns the nearest float64 value for x and a bool indicating
+// Float64Gmp returns the nearest float64 value for x and a bool indicating
 // whether f represents x exactly. If the magnitude of x is too large to
 // be represented by a float64, f is an infinity and exact is false.
 // The sign of f always matches the sign of x, even if f == 0.
@@ -633,7 +633,7 @@ func (z *Rat) GobDecode(buf []byte) error {
 	}
 	b := buf[0]
 	if b>>1 != ratGobVersion {
-		return errors.New(fmt.Sprintf("Rat.GobDecode: encoding version %d not supported", b>>1))
+		return fmt.Errorf("Rat.GobDecode: encoding version %d not supported", b>>1)
 	}
 	const j = 1 + 4
 	i := j + binary.BigEndian.Uint32(buf[j-4:j])
