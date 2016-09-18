@@ -923,7 +923,7 @@ func (z *Int) GobDecode(buf []byte) error {
 	}
 	b := buf[0]
 	if b>>1 != intGobVersion {
-		return errors.New(fmt.Sprintf("Int.GobDecode: encoding version %d not supported", b>>1))
+		return fmt.Errorf("Int.GobDecode: encoding version %d not supported", b>>1)
 	}
 	z.SetBytes(buf[1:])
 	if b&1 != 0 {
