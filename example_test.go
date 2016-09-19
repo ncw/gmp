@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package gmp_test
+package gmp
 
 import (
 	"fmt"
-	big "github.com/ncw/gmp"
 	"log"
 )
 
@@ -18,7 +17,7 @@ import (
 // }
 
 func ExampleInt_SetString() {
-	i := new(big.Int)
+	i := new(Int)
 	i.SetString("644", 8) // octal
 	fmt.Println(i)
 	// Output: 420
@@ -27,7 +26,7 @@ func ExampleInt_SetString() {
 // func ExampleRat_Scan() {
 // 	// The Scan function is rarely used directly;
 // 	// the fmt package recognizes it as an implementation of fmt.Scanner.
-// 	r := new(big.Rat)
+// 	r := new(Rat)
 // 	_, err := fmt.Sscan("1.5000", r)
 // 	if err != nil {
 // 		log.Println("error scanning value:", err)
@@ -40,7 +39,7 @@ func ExampleInt_SetString() {
 func ExampleInt_Scan() {
 	// The Scan function is rarely used directly;
 	// the fmt package recognizes it as an implementation of fmt.Scanner.
-	i := new(big.Int)
+	i := new(Int)
 	_, err := fmt.Sscan("18446744073709551617", i)
 	if err != nil {
 		log.Println("error scanning value:", err)
