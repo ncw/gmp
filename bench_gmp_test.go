@@ -1,16 +1,14 @@
-package gmp_test
+package gmp
 
 import (
 	"testing"
-
-	"github.com/ncw/gmp"
 )
 
 // Make a n digit number
-func nDigitNumberGmp(digits int64) *gmp.Int {
-	x := gmp.NewInt(10)
-	n := gmp.NewInt(digits)
-	one := gmp.NewInt(1)
+func nDigitNumberGmp(digits int64) *Int {
+	x := NewInt(10)
+	n := NewInt(digits)
+	one := NewInt(1)
 	x.Exp(x, n, nil)
 	x.Sub(x, one)
 	return x
@@ -19,7 +17,7 @@ func nDigitNumberGmp(digits int64) *gmp.Int {
 func benchmarkGmpAddN(b *testing.B, digits int64) {
 	x := nDigitNumberGmp(digits)
 	y := nDigitNumberGmp(digits)
-	z := gmp.NewInt(0)
+	z := NewInt(0)
 	b.ResetTimer()
 	b.StartTimer()
 	for i := b.N - 1; i >= 0; i-- {
@@ -52,7 +50,7 @@ func BenchmarkGmpAdd1000000(b *testing.B) {
 func benchmarkGmpMulN(b *testing.B, digits int64) {
 	x := nDigitNumberGmp(digits)
 	y := nDigitNumberGmp(digits)
-	z := gmp.NewInt(0)
+	z := NewInt(0)
 	b.ResetTimer()
 	b.StartTimer()
 	for i := b.N - 1; i >= 0; i-- {
