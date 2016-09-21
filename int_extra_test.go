@@ -7,8 +7,257 @@
 package gmp
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 )
+
+type binaryFun func(a, b int64) bool
+type ternaryFun func(a, b, c int64) bool
+
+var random *rand.Rand
+var perFuncTests []int64
+
+func init() {
+	random = rand.New(rand.NewSource(time.Now().UnixNano()))
+	perFuncTests = make([]int64, 50, 50)
+	for i := range perFuncTests {
+		perFuncTests[i] = int64(i)
+	}
+}
+
+func randomInt30() int64 {
+	i := int64(random.Int31())
+	if i >= 1<<30 {
+		i = 0 - i>>1
+	}
+	return i
+}
+
+func randomInt62() int64 {
+	i := random.Int63()
+	if i >= 1<<62 {
+		i = 0 - i>>1
+	}
+	return i
+}
+
+func absi(i int64) int64 {
+	if i < 0 {
+		return -i
+	}
+	return i
+}
+
+func cmpi(a, b int64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}
+
+func testBinary(t *testing.T, name string, fun binaryFun, maxBits int) {
+	small := [...]int64{0, 1, -1, 2, -2}
+	for _, x := range small {
+		for _, y := range small {
+			if !fun(x, y) {
+				t.Errorf("%s failed for %v and %v", name, x, y)
+			}
+		}
+	}
+	if maxBits >= 30 {
+		for i := 0; i < 6; i++ {
+			x := randomInt30()
+			for j := 0; j < 7; j++ {
+				y := randomInt30()
+				if !fun(x, y) {
+					t.Errorf("%s failed for %v and %v", name, x, y)
+				}
+			}
+		}
+	}
+	if maxBits >= 62 {
+		for i := 0; i < 6; i++ {
+			x := randomInt62()
+			for j := 0; j < 7; j++ {
+				y := randomInt62()
+				if !fun(x, y) {
+					t.Errorf("%s failed for %v and %v", name, x, y)
+				}
+			}
+		}
+	}
+}
+
+func testTernary(t *testing.T, name string, fun ternaryFun) {
+	small := [...]int64{0, 1, -1, 2, -2}
+	for _, x := range small {
+		for _, y := range small {
+			for _, z := range small {
+				if !fun(x, y, z) {
+					t.Errorf("%s failed for %v, %v and %v", name, x, y, z)
+				}
+			}
+		}
+	}
+	for i := 0; i < 5; i++ {
+		x := randomInt30()
+		for j := 0; j < 5; j++ {
+			y := randomInt30()
+			for k := 0; k < 5; k++ {
+				z := randomInt30()
+				if !fun(x, y, z) {
+					t.Errorf("%s failed for %v, %v and %v", name, x, y, z)
+				}
+			}
+		}
+	}
+}
+
+func TestSwap(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		b := NewInt(j)
+		a.Swap(b)
+		return i == b.Int64() && j == a.Int64()
+	}
+	testBinary(t, "Swap", fun, 64)
+}
+
+func TestAddMul(t *testing.T) {
+	fun := func(i, j, k int64) bool {
+		a := NewInt(i)
+		return a.AddMul(NewInt(j), NewInt(k)).Int64() == i+j*k
+	}
+	testTernary(t, "AddMul", fun)
+}
+
+func TestAddUint32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.AddUint32(a, k).Int64() == i+int64(k)
+	}
+	testBinary(t, "AddUint32", fun, 62)
+}
+
+func TestSubUint32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.SubUint32(a, k).Int64() == i-int64(k)
+	}
+	testBinary(t, "SubUint32", fun, 62)
+}
+
+func TestUint32Sub(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.Uint32Sub(k, a).Int64() == int64(k)-i
+	}
+	testBinary(t, "Uint32Sub", fun, 62)
+}
+
+func TestMulUint32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.MulUint32(a, k).Int64() == i*int64(k)
+	}
+	testBinary(t, "MulUint32", fun, 30)
+}
+
+func TestMulInt32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := int32(j)
+		return a.MulInt32(a, k).Int64() == i*int64(k)
+	}
+	testBinary(t, "MulInt32", fun, 30)
+}
+
+func TestAddMulUint32(t *testing.T) {
+	fun := func(i, j, k int64) bool {
+		a := NewInt(i)
+		n := uint32(k)
+		return a.AddMulUint32(NewInt(j), n).Int64() == i+j*int64(n)
+	}
+	testTernary(t, "AddMulUint32", fun)
+}
+
+func TestSubMul(t *testing.T) {
+	fun := func(i, j, k int64) bool {
+		a := NewInt(i)
+		return a.SubMul(NewInt(j), NewInt(k)).Int64() == i-j*k
+	}
+	testTernary(t, "SubMul", fun)
+}
+
+func TestSubMulUint32(t *testing.T) {
+	fun := func(i, j, k int64) bool {
+		a := NewInt(i)
+		n := uint32(k)
+		return a.SubMulUint32(NewInt(j), n).Int64() == i-j*int64(n)
+	}
+	testTernary(t, "SubMulUint32", fun)
+}
+
+func TestCmpUint32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.CmpUint32(k) == cmpi(i, int64(k))
+	}
+	testBinary(t, "CmpUint32", fun, 64)
+}
+
+func TestCmpInt32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := int32(j)
+		return a.CmpInt32(k) == cmpi(i, int64(k))
+	}
+	testBinary(t, "CmpInt32", fun, 64)
+}
+
+func TestCmpAbs(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		return a.CmpAbs(NewInt(j)) == cmpi(absi(i), absi(j))
+	}
+	testBinary(t, "CmpAbs", fun, 64)
+}
+
+func TestCmpAbsUint32(t *testing.T) {
+	fun := func(i, j int64) bool {
+		a := NewInt(i)
+		k := uint32(j)
+		return a.CmpAbsUint32(k) == cmpi(absi(i), int64(k))
+	}
+	testBinary(t, "CmpAbsUint32", fun, 64)
+}
+
+func TestUint32(t *testing.T) {
+	for _ = range perFuncTests {
+		var n = uint32(random.Int63())
+		if NewInt(int64(n)).Uint32() != n {
+			t.Errorf("Uint32 failed for %v", n)
+		}
+	}
+}
+
+func TestInt32(t *testing.T) {
+	for _ = range perFuncTests {
+		var n = int32(random.Int63())
+		if NewInt(int64(n)).Int32() != n {
+			t.Errorf("Int32 failed for %v", n)
+		}
+	}
+}
 
 func TestSqrt(t *testing.T) {
 	a := NewInt(1)
@@ -16,7 +265,7 @@ func TestSqrt(t *testing.T) {
 	ten := NewInt(10)
 	hundred := NewInt(100)
 	root := new(Int)
-	for i := 0; i < 50; i++ {
+	for _ = range perFuncTests {
 		root := root.Sqrt(a_squared)
 		if root.Cmp(a) != 0 {
 			t.Errorf("Sqrt failed got %d expecting %d", root, a)
