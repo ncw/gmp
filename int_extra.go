@@ -110,6 +110,17 @@ func (z *Int) SubMulUint32(x *Int, y uint32) *Int {
 	return z
 }
 
+// compared reduces the result of a GMP comparison to one of {-1, 0, 1}.
+func compared(i C.int) int {
+	if i > 0 {
+		return 1
+	} else if i < 0 {
+		return -1
+	} else {
+		return 0
+	}
+}
+
 // CmpUint32 compares z and x and returns:
 //
 //   -1 if z <  x
@@ -118,14 +129,7 @@ func (z *Int) SubMulUint32(x *Int, y uint32) *Int {
 //
 func (z *Int) CmpUint32(x uint32) int {
 	z.doinit()
-	r := C._mpz_cmp_ui(&z.i[0], C.ulong(x))
-	if r > 0 {
-		return 1
-	}
-	if r < 0 {
-		return -1
-	}
-	return 0
+	return compared(C._mpz_cmp_ui(&z.i[0], C.ulong(x)))
 }
 
 // CmpInt32 compares z and x and returns:
@@ -136,14 +140,7 @@ func (z *Int) CmpUint32(x uint32) int {
 //
 func (z *Int) CmpInt32(x int32) int {
 	z.doinit()
-	r := C._mpz_cmp_si(&z.i[0], C.long(x))
-	if r > 0 {
-		return 1
-	}
-	if r < 0 {
-		return -1
-	}
-	return 0
+	return compared(C._mpz_cmp_si(&z.i[0], C.long(x)))
 }
 
 // CmpAbs compares |z| and |x| and returns:
@@ -155,14 +152,7 @@ func (z *Int) CmpInt32(x int32) int {
 func (z *Int) CmpAbs(x *Int) int {
 	x.doinit()
 	z.doinit()
-	r := C.mpz_cmpabs(&z.i[0], &x.i[0])
-	if r > 0 {
-		return 1
-	}
-	if r < 0 {
-		return -1
-	}
-	return 0
+	return compared(C.mpz_cmpabs(&z.i[0], &x.i[0]))
 }
 
 // CmpAbsUint32 compares |z| and |x| and returns:
@@ -173,14 +163,7 @@ func (z *Int) CmpAbs(x *Int) int {
 //
 func (z *Int) CmpAbsUint32(x uint32) int {
 	z.doinit()
-	r := C.mpz_cmpabs_ui(&z.i[0], C.ulong(x))
-	if r > 0 {
-		return 1
-	}
-	if r < 0 {
-		return -1
-	}
-	return 0
+	return compared(C.mpz_cmpabs_ui(&z.i[0], C.ulong(x)))
 }
 
 // Uint32 returns the uint32 representation of z, if z fits into a uint32.
