@@ -16,30 +16,26 @@ type binaryFun func(a, b int64) bool
 type ternaryFun func(a, b, c int64) bool
 
 var random *rand.Rand
-var perFuncTests []int64
+var perFuncTests []int
 
 func init() {
 	random = rand.New(rand.NewSource(time.Now().UnixNano()))
-	perFuncTests = make([]int64, 50, 50)
-	for i := range perFuncTests {
-		perFuncTests[i] = int64(i)
-	}
+	perFuncTests = random.Perm(50)
 }
 
-func randomInt30() int64 {
-	i := int64(random.Int31())
-	if i >= 1<<30 {
-		i = 0 - i>>1
-	}
-	return i
-}
-
-func randomInt62() int64 {
-	i := random.Int63()
-	if i >= 1<<62 {
-		i = 0 - i>>1
-	}
-	return i
+func randoms(num int, bits int) <-chan int64 {
+	channel := make(chan int64)
+	go func(out chan<- int64) {
+		for _, i := range random.Perm(num) {
+			ran := random.Int63n(1<<uint(bits-1) - 1)
+			if i&1 == 1 {
+				ran = -ran
+			}
+			out <- ran
+		}
+		close(out)
+	}(channel)
+	return channel
 }
 
 func absi(i int64) int64 {
@@ -60,7 +56,7 @@ func cmpi(a, b int64) int {
 }
 
 func testBinary(t *testing.T, name string, fun binaryFun, maxBits int) {
-	small := [...]int64{0, 1, -1, 2, -2}
+	small := [...]int64{0, 1, -1, 2, -2, 3, -3}
 	for _, x := range small {
 		for _, y := range small {
 			if !fun(x, y) {
@@ -68,32 +64,17 @@ func testBinary(t *testing.T, name string, fun binaryFun, maxBits int) {
 			}
 		}
 	}
-	if maxBits >= 30 {
-		for i := 0; i < 6; i++ {
-			x := randomInt30()
-			for j := 0; j < 7; j++ {
-				y := randomInt30()
-				if !fun(x, y) {
-					t.Errorf("%s failed for %v and %v", name, x, y)
-				}
-			}
-		}
-	}
-	if maxBits >= 62 {
-		for i := 0; i < 6; i++ {
-			x := randomInt62()
-			for j := 0; j < 7; j++ {
-				y := randomInt62()
-				if !fun(x, y) {
-					t.Errorf("%s failed for %v and %v", name, x, y)
-				}
+	for x := range randoms(10, maxBits) {
+		for y := range randoms(10, maxBits) {
+			if !fun(x, y) {
+				t.Errorf("%s failed for %v and %v", name, x, y)
 			}
 		}
 	}
 }
 
 func testTernary(t *testing.T, name string, fun ternaryFun) {
-	small := [...]int64{0, 1, -1, 2, -2}
+	small := [...]int64{0, 1, -1, 2, -2, 3, -3}
 	for _, x := range small {
 		for _, y := range small {
 			for _, z := range small {
@@ -103,12 +84,10 @@ func testTernary(t *testing.T, name string, fun ternaryFun) {
 			}
 		}
 	}
-	for i := 0; i < 5; i++ {
-		x := randomInt30()
-		for j := 0; j < 5; j++ {
-			y := randomInt30()
-			for k := 0; k < 5; k++ {
-				z := randomInt30()
+	num, bits := 6, 30
+	for x := range randoms(num, bits) {
+		for y := range randoms(num, bits) {
+			for z := range randoms(num, bits) {
 				if !fun(x, y, z) {
 					t.Errorf("%s failed for %v, %v and %v", name, x, y, z)
 				}
