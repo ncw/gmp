@@ -2,7 +2,7 @@ Gmp
 ===
 
 [![GoDoc](https://godoc.org/github.com/ncw/gmp?status.svg)](https://godoc.org/github.com/ncw/gmp)
-[![Build Status](https://travis-ci.org/ncw/gmp.png)](https://travis-ci.org/ncw/gmp)
+[![Build Status](https://travis-ci.org/ncw/gmp.svg?branch=master)](https://travis-ci.org/ncw/gmp)
 
 This package provides a drop in replacement for Go's built in
 [math/big](http://golang.org/pkg/math/big/) big integer package using
