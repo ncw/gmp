@@ -558,7 +558,7 @@ func TestScan(t *testing.T) {
 	for i, test := range scanTests {
 		x := new(Int)
 		buf.Reset()
-		buf.WriteString(test.input)
+		_, _ = buf.WriteString(test.input)
 		if _, err := fmt.Fscanf(&buf, test.format, x); err != nil {
 			t.Errorf("#%d error: %s", i, err)
 		}
@@ -947,7 +947,10 @@ func TestGcd(t *testing.T) {
 		testGcd(t, d, x, y, a, b)
 	}
 
-	quick.Check(checkGcd, nil)
+	err := quick.Check(checkGcd, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 var primes = []string{

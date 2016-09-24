@@ -240,16 +240,16 @@ func TestInt32(t *testing.T) {
 
 func TestSqrt(t *testing.T) {
 	a := NewInt(1)
-	a_squared := NewInt(1)
+	aSquared := NewInt(1)
 	ten := NewInt(10)
 	hundred := NewInt(100)
 	root := new(Int)
 	for _ = range perFuncTests {
-		root := root.Sqrt(a_squared)
+		root := root.Sqrt(aSquared)
 		if root.Cmp(a) != 0 {
 			t.Errorf("Sqrt failed got %d expecting %d", root, a)
 		}
 		a.Mul(a, ten)
-		a_squared.Mul(a_squared, hundred)
+		aSquared.Mul(aSquared, hundred)
 	}
 }

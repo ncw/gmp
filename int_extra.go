@@ -6,11 +6,12 @@
 //
 // Because the underlying C compiler may use 32-bit longs we
 // use 32-bit integers here for maximum portability and speed.
-
+//
 // NB
 // Sqrt, Swap, AddUint32, SubUint32, Uint32Sub, MulUint32, MulInt,
 // AddMul, AddMulUint32, SubMul, SubMulUint32, Uint32, Int32,
 // are not part of big.Int.
+
 package gmp
 
 /*
@@ -68,7 +69,7 @@ func (z *Int) MulUint32(x *Int, y uint32) *Int {
 	return z
 }
 
-// MulInt sets z to the product x*y and returns z.
+// MulInt32 sets z to the product x*y and returns z.
 func (z *Int) MulInt32(x *Int, y int32) *Int {
 	x.doinit()
 	z.doinit()

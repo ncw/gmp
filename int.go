@@ -52,9 +52,9 @@ import (
 
 // Some definited Ints for internal use only
 var (
-	_Int_0  = NewInt(0)
-	_Int_1  = NewInt(1)
-	_Int_10 = NewInt(10)
+	_Int0  = NewInt(0)
+	_Int1  = NewInt(1)
+	_Int10 = NewInt(10)
 )
 
 // An Int represents a signed multi-precision integer.
@@ -65,7 +65,7 @@ type Int struct {
 }
 
 // Finalizer - release the memory allocated to the mpz
-func _Int_finalize(z *Int) {
+func intFinalize(z *Int) {
 	if z.init {
 		runtime.SetFinalizer(z, nil)
 		C.mpz_clear(&z.i[0])
@@ -83,7 +83,7 @@ func (z *Int) doinit() {
 	}
 	z.init = true
 	C.mpz_init(&z.i[0])
-	runtime.SetFinalizer(z, _Int_finalize)
+	runtime.SetFinalizer(z, intFinalize)
 }
 
 // Clear the allocated space used by the number
@@ -93,7 +93,7 @@ func (z *Int) doinit() {
 //
 // NB This is not part of big.Int
 func (z *Int) Clear() {
-	_Int_finalize(z)
+	intFinalize(z)
 }
 
 // Sign returns:
@@ -102,9 +102,9 @@ func (z *Int) Clear() {
 //	 0 if x == 0
 //	+1 if x >  0
 //
-func (x *Int) Sign() int {
-	x.doinit()
-	return int(C._mpz_sgn(&x.i[0]))
+func (z *Int) Sign() int {
+	z.doinit()
+	return int(C._mpz_sgn(&z.i[0]))
 }
 
 // SetInt64 sets z to x and returns z.
@@ -158,7 +158,7 @@ func (z *Int) Set(x *Int) *Int {
 // the same underlying array.
 // Bits is intended to support implementation of missing low-level Int
 // functionality outside this package; it should be avoided otherwise.
-// func (x *Int) Bits() []Word {
+// func (z *Int) Bits() []Word {
 // 	// FIXME not implemented
 // 	return nil
 // }
@@ -359,16 +359,16 @@ func (z *Int) DivMod(x, y, m *Int) (*Int, *Int) {
 	return z, m
 }
 
-// Cmp compares x and y and returns:
+// Cmp compares z and y and returns:
 //
-//   -1 if x <  y
-//    0 if x == y
-//   +1 if x >  y
+//   -1 if z <  y
+//    0 if z == y
+//   +1 if z >  y
 //
-func (x *Int) Cmp(y *Int) (r int) {
-	x.doinit()
+func (z *Int) Cmp(y *Int) (r int) {
+	z.doinit()
 	y.doinit()
-	r = int(C.mpz_cmp(&x.i[0], &y.i[0]))
+	r = int(C.mpz_cmp(&z.i[0], &y.i[0]))
 	if r < 0 {
 		r = -1
 	} else if r > 0 {
@@ -397,7 +397,7 @@ func (z *Int) String() string {
 // Convert rune into base
 //
 // Note gmp says -ve bases make upper case
-func base_for_rune(ch rune) int {
+func baseForRune(ch rune) int {
 	switch ch {
 	case 'b':
 		return 2
@@ -434,16 +434,16 @@ func writeMultiple(s fmt.State, text string, count int) {
 // output field width, space or zero padding, and left or
 // right justification.
 //
-func (x *Int) Format(s fmt.State, ch rune) {
-	base := base_for_rune(ch)
+func (z *Int) Format(s fmt.State, ch rune) {
+	base := baseForRune(ch)
 
 	// special cases
 	switch {
 	case base == 0:
 		// unknown format
-		fmt.Fprintf(s, "%%!%c(gmp.Int=%s)", ch, x.String())
+		fmt.Fprintf(s, "%%!%c(gmp.Int=%s)", ch, z.String())
 		return
-	case x == nil:
+	case z == nil:
 		fmt.Fprint(s, "<nil>")
 		return
 	}
@@ -451,7 +451,7 @@ func (x *Int) Format(s fmt.State, ch rune) {
 	// determine sign character
 	sign := ""
 	switch {
-	case x.Sign() < 0:
+	case z.Sign() < 0:
 		sign = "-"
 	case s.Flag('+'): // supersedes ' ' when both specified
 		sign = "+"
@@ -473,7 +473,7 @@ func (x *Int) Format(s fmt.State, ch rune) {
 	}
 
 	// determine digits with base set by len(cs) and digit characters from cs
-	digits := x.string(base)
+	digits := z.string(base)
 	if digits[0] == '-' {
 		digits = digits[1:]
 	}
@@ -490,7 +490,7 @@ func (x *Int) Format(s fmt.State, ch rune) {
 		case len(digits) < precision:
 			zeroes = precision - len(digits) // count of zero padding
 		case digits == "0" && precision == 0:
-			return // print nothing if zero value (x == 0) and zero precision ("." or ".0")
+			return // print nothing if zero value (z == 0) and zero precision ("." or ".0")
 		}
 	}
 
@@ -595,40 +595,40 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 	return nil
 }
 
-// Int64 returns the int64 representation of x.
-// If x cannot be represented in an int64, the result is undefined.
-func (x *Int) Int64() (y int64) {
-	if !x.init {
+// Int64 returns the int64 representation of z.
+// If z cannot be represented in an int64, the result is undefined.
+func (z *Int) Int64() (y int64) {
+	if !z.init {
 		return
 	}
-	if C.mpz_fits_slong_p(&x.i[0]) != 0 {
-		return int64(C.mpz_get_si(&x.i[0]))
+	if C.mpz_fits_slong_p(&z.i[0]) != 0 {
+		return int64(C.mpz_get_si(&z.i[0]))
 	}
 	// Undefined result if > 64 bits
-	if x.BitLen() > 64 {
+	if z.BitLen() > 64 {
 		return
 	}
-	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &x.i[0])
-	if x.Sign() < 0 {
+	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &z.i[0])
+	if z.Sign() < 0 {
 		y = -y
 	}
 	return
 }
 
-// Uint64 returns the uint64 representation of x.
-// If x cannot be represented in a uint64, the result is undefined.
-func (x *Int) Uint64() (y uint64) {
-	if !x.init {
+// Uint64 returns the uint64 representation of z.
+// If z cannot be represented in a uint64, the result is undefined.
+func (z *Int) Uint64() (y uint64) {
+	if !z.init {
 		return
 	}
-	if C.mpz_fits_ulong_p(&x.i[0]) != 0 {
-		return uint64(C.mpz_get_ui(&x.i[0]))
+	if C.mpz_fits_ulong_p(&z.i[0]) != 0 {
+		return uint64(C.mpz_get_ui(&z.i[0]))
 	}
 	// Undefined result if > 64 bits
-	if x.BitLen() > 64 {
+	if z.BitLen() > 64 {
 		return
 	}
-	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &x.i[0])
+	C.mpz_export(unsafe.Pointer(&y), nil, -1, 8, 0, 0, &z.i[0])
 	return
 }
 
@@ -675,10 +675,10 @@ func (z *Int) SetBytes(buf []byte) *Int {
 }
 
 // Bytes returns the absolute value of z as a big-endian byte slice.
-func (x *Int) Bytes() []byte {
-	b := make([]byte, 1+(x.BitLen()+7)/8)
+func (z *Int) Bytes() []byte {
+	b := make([]byte, 1+(z.BitLen()+7)/8)
 	n := C.size_t(len(b))
-	C.mpz_export(unsafe.Pointer(&b[0]), &n, 1, 1, 1, 0, &x.i[0])
+	C.mpz_export(unsafe.Pointer(&b[0]), &n, 1, 1, 1, 0, &z.i[0])
 	return b[0:n]
 }
 
@@ -734,24 +734,24 @@ func (z *Int) GCD(x, y, a, b *Int) *Int {
 		if x != nil {
 			x.doinit()
 		} else {
-			x = _Int_0
+			x = _Int0
 		}
 		if y != nil {
 			y.doinit()
 		} else {
-			y = _Int_0
+			y = _Int0
 		}
 		C.mpz_gcdext(&z.i[0], &x.i[0], &y.i[0], &a.i[0], &b.i[0])
 	}
 	return z
 }
 
-// ProbablyPrime performs n Miller-Rabin tests to check whether x is prime.
-// If it returns true, x is prime with probability 1 - 1/4^n.
-// If it returns false, x is not prime.
-func (x *Int) ProbablyPrime(n int) bool {
-	x.doinit()
-	return int(C.mpz_probab_prime_p(&x.i[0], C.int(n))) > 0
+// ProbablyPrime performs n Miller-Rabin tests to check whether z is prime.
+// If it returns true, z is prime with probability 1 - 1/4^n.
+// If it returns false, z is not prime.
+func (z *Int) ProbablyPrime(n int) bool {
+	z.doinit()
+	return int(C.mpz_probab_prime_p(&z.i[0], C.int(n))) > 0
 }
 
 // Rand sets z to a pseudo-random number in [0, n) and returns z.
@@ -823,11 +823,11 @@ func (z *Int) Rsh(x *Int, n uint) *Int {
 	return z
 }
 
-// Bit returns the value of the i'th bit of x. That is, it
-// returns (x>>i)&1. The bit index i must be >= 0.
-func (x *Int) Bit(i int) uint {
-	x.doinit()
-	return uint(C._mpz_tstbit(&x.i[0], C.ulong(i)))
+// Bit returns the value of the i'th bit of z. That is, it
+// returns (z>>i)&1. The bit index i must be >= 0.
+func (z *Int) Bit(i int) uint {
+	z.doinit()
+	return uint(C._mpz_tstbit(&z.i[0], C.ulong(i)))
 }
 
 // SetBit sets z to x, with x's i'th bit set to b (0 or 1).
@@ -904,12 +904,12 @@ func (z *Int) Not(x *Int) *Int {
 const intGobVersion byte = 1
 
 // GobEncode implements the gob.GobEncoder interface.
-func (x *Int) GobEncode() ([]byte, error) {
-	buf := make([]byte, 2+(x.BitLen()+7)/8)
+func (z *Int) GobEncode() ([]byte, error) {
+	buf := make([]byte, 2+(z.BitLen()+7)/8)
 	n := C.size_t(len(buf) - 1)
-	C.mpz_export(unsafe.Pointer(&buf[1]), &n, 1, 1, 1, 0, &x.i[0])
+	C.mpz_export(unsafe.Pointer(&buf[1]), &n, 1, 1, 1, 0, &z.i[0])
 	b := intGobVersion << 1 // make space for sign bit
-	if x.Sign() < 0 {
+	if z.Sign() < 0 {
 		b |= 1
 	}
 	buf[0] = b
@@ -933,9 +933,9 @@ func (z *Int) GobDecode(buf []byte) error {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (x *Int) MarshalJSON() ([]byte, error) {
+func (z *Int) MarshalJSON() ([]byte, error) {
 	// TODO(gri): get rid of the []byte/string conversions
-	return []byte(x.String()), nil
+	return []byte(z.String()), nil
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.

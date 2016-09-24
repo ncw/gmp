@@ -110,7 +110,7 @@ func TestRatScan(t *testing.T) {
 	for i, test := range setStringTests {
 		x := new(Rat)
 		buf.Reset()
-		buf.WriteString(test.in)
+		_, _ = buf.WriteString(test.in)
 
 		_, err := fmt.Fscanf(&buf, "%v", x)
 		if err == nil != test.ok {
