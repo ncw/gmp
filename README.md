@@ -1,6 +1,9 @@
 Gmp
 ===
 
+[![GoDoc](https://godoc.org/github.com/ncw/gmp?status.svg)](https://godoc.org/github.com/ncw/gmp)
+[![Build Status](https://travis-ci.org/ncw/gmp.png)](https://travis-ci.org/ncw/gmp)
+
 This package provides a drop in replacement for Go's built in
 [math/big](http://golang.org/pkg/math/big/) big integer package using
 the [GNU Multiprecision Library](http://gmplib.org/) (GMP).
@@ -23,9 +26,7 @@ doing the following to it
 
 See here for package docs
 
-* http://go.pkgdoc.org/github.com/ncw/gmp
-
-[![Build Status](https://travis-ci.org/ncw/gmp.png)](https://travis-ci.org/ncw/gmp)
+* https://godoc.org/github.com/ncw/gmp
 
 Install
 -------
@@ -100,4 +101,4 @@ Authors
 Contributors
 ------------
 
-* Your name here!
+* Bert Gijsbers <gijhub@gmail.com>

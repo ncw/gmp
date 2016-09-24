@@ -39,6 +39,9 @@ var prodZZ = []argZZ{
 	{NewInt(0), NewInt(1), NewInt(0)},
 	{NewInt(1), NewInt(1), NewInt(1)},
 	{NewInt(-991 * 991), NewInt(991), NewInt(-991)},
+	{NewInt(121932631112635269), NewInt(123456789), NewInt(987654321)},
+	{NewInt(-121932631112635269), NewInt(-123456789), NewInt(987654321)},
+	{NewInt(121932631112635269), NewInt(-123456789), NewInt(-987654321)},
 	// TODO(gri) add larger products
 }
 
