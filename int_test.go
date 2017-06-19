@@ -1487,6 +1487,59 @@ func TestModInverse(t *testing.T) {
 	}
 }
 
+func TestJacobi(t *testing.T) {
+	testCases := []struct {
+		x, y   int64
+		result int
+	}{
+		{0, 1, 1},
+		{0, -1, 1},
+		{1, 1, 1},
+		{1, -1, 1},
+		{0, 5, 0},
+		{1, 5, 1},
+		{2, 5, -1},
+		{-2, 5, -1},
+		{2, -5, -1},
+		{-2, -5, 1},
+		{3, 5, -1},
+		{5, 5, 0},
+		{-5, 5, 0},
+		{6, 5, 1},
+		{6, -5, 1},
+		{-6, 5, 1},
+		{-6, -5, -1},
+	}
+
+	var x, y Int
+
+	for i, test := range testCases {
+		x.SetInt64(test.x)
+		y.SetInt64(test.y)
+		expected := test.result
+		actual := Jacobi(&x, &y)
+		if actual != expected {
+			t.Errorf("#%d: Jacobi(%d, %d) = %d, but expected %d", i, test.x, test.y, actual, expected)
+		}
+	}
+}
+
+func TestJacobiPanic(t *testing.T) {
+	const failureMsg = "test failure"
+	defer func() {
+		msg := recover()
+		if msg == nil || msg == failureMsg {
+			panic(msg)
+		}
+		t.Log(msg)
+	}()
+	x := NewInt(1)
+	y := NewInt(2)
+	// Jacobi should panic when the second argument is even.
+	Jacobi(x, y)
+	panic(failureMsg)
+}
+
 var encodingTests = []string{
 	"-539345864568634858364538753846587364875430589374589",
 	"-678645873",

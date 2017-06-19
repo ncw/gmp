@@ -36,6 +36,9 @@ void _mpz_setbit(mpz_ptr a, unsigned long n) {
 int _mpz_sgn(mpz_t op) {
 	return mpz_sgn(op);
 }
+int _mpz_even_p(mpz_t op) {
+	return mpz_even_p(op);
+}
 */
 import "C"
 
@@ -954,4 +957,17 @@ func (z *Int) UnmarshalJSON(x []byte) error {
 		return fmt.Errorf("math/big: cannot unmarshal %s into a *gmp.Int", x)
 	}
 	return nil
+}
+
+// Jacobi returns the Jacobi symbol (x/y), either +1, -1, or 0.
+// The y argument must be an odd integer.
+func Jacobi(x, y *Int) int {
+	x.doinit()
+	y.doinit()
+
+	if C._mpz_sgn(&y.i[0]) == 0 || C._mpz_even_p(&y.i[0]) != 0 {
+		panic(fmt.Sprintf("big: invalid 2nd argument to Int.Jacobi: need odd integer but got %s", y))
+	}
+
+	return int(C.mpz_jacobi(&x.i[0], &y.i[0]))
 }
