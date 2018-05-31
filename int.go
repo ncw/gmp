@@ -418,7 +418,7 @@ func writeMultiple(s fmt.State, text string, count int) {
 	if len(text) > 0 {
 		b := []byte(text)
 		for ; count > 0; count-- {
-			s.Write(b)
+			_, _ = s.Write(b)
 		}
 	}
 }
@@ -441,10 +441,10 @@ func (z *Int) Format(s fmt.State, ch rune) {
 	switch {
 	case base == 0:
 		// unknown format
-		fmt.Fprintf(s, "%%!%c(gmp.Int=%s)", ch, z.String())
+		_, _ = fmt.Fprintf(s, "%%!%c(gmp.Int=%s)", ch, z.String())
 		return
 	case z == nil:
-		fmt.Fprint(s, "<nil>")
+		_, _ = fmt.Fprint(s, "<nil>")
 		return
 	}
 
@@ -558,7 +558,10 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 		}
 		if n > 1 {
 			// Wide character - must be the end
-			s.UnreadRune()
+			err = s.UnreadRune()
+			if err != nil {
+				return err
+			}
 			break
 		}
 		ch = unicode.ToLower(ch)
@@ -578,7 +581,10 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 		}
 		if !strings.ContainsRune(charset, ch) {
 			// Bad character - end
-			s.UnreadRune()
+			err = s.UnreadRune()
+			if err != nil {
+				return err
+			}
 			break
 		}
 	ok:
