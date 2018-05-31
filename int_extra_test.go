@@ -221,7 +221,7 @@ func TestCmpAbsUint32(t *testing.T) {
 }
 
 func TestUint32(t *testing.T) {
-	for _ = range perFuncTests {
+	for range perFuncTests {
 		var n = uint32(random.Int63())
 		if NewInt(int64(n)).Uint32() != n {
 			t.Errorf("Uint32 failed for %v", n)
@@ -230,7 +230,7 @@ func TestUint32(t *testing.T) {
 }
 
 func TestInt32(t *testing.T) {
-	for _ = range perFuncTests {
+	for range perFuncTests {
 		var n = int32(random.Int63())
 		if NewInt(int64(n)).Int32() != n {
 			t.Errorf("Int32 failed for %v", n)
@@ -244,7 +244,7 @@ func TestSqrt(t *testing.T) {
 	ten := NewInt(10)
 	hundred := NewInt(100)
 	root := new(Int)
-	for _ = range perFuncTests {
+	for range perFuncTests {
 		root := root.Sqrt(aSquared)
 		if root.Cmp(a) != 0 {
 			t.Errorf("Sqrt failed got %d expecting %d", root, a)
