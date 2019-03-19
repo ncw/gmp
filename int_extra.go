@@ -16,6 +16,16 @@ package gmp
 */
 import "C"
 
+// Root sets x to the truncated integer part of the yth root of x
+//
+// NB This is not part of big.Int
+func (z *Int) Root(x *Int, y uint32) *Int {
+  x.doinit()
+  z.doinit()
+  C.mpz_root(&z.i[0], &x.i[0], C.ulong(y))
+  return z
+}
+
 // Sqrt sets x to the truncated integer part of the square root of x
 //
 // NB This is not part of big.Int

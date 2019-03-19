@@ -253,3 +253,19 @@ func TestSqrt(t *testing.T) {
 		aSquared.Mul(aSquared, hundred)
 	}
 }
+
+func TestRoot(t *testing.T) {
+  a := NewInt(1)
+  aSquared := NewInt(1)
+  ten := NewInt(10)
+  hundred := NewInt(100)
+  root := new(Int)
+  for _ = range perFuncTests {
+    root := root.Root(aSquared,2)
+    if root.Cmp(a) != 0 {
+      t.Errorf("Root failed got %d expecting %d", root, a)
+    }
+    a.Mul(a, ten)
+    aSquared.Mul(aSquared, hundred)
+  }
+}
