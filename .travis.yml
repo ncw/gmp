@@ -8,13 +8,14 @@ go:
   - 1.9.x
   - 1.10.x
   - 1.11.x
+  - 1.12.x
   - tip
 
 matrix:
   allow_failures:
   - go: tip
   include:
-  - go: 1.11.x
+  - go: 1.12.x
     name: "Code Quality"
     env: CODE_QUALITY=1
 
