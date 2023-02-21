@@ -1,0 +1,96 @@
+---
+# Github Actions build for gmp
+# -*- compile-command: "yamllint -f parsable build.yml" -*-
+
+name: build
+
+# Trigger the workflow on push or pull request
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      manual:
+        required: true
+        default: true
+
+jobs:
+  build:
+    if: ${{ github.repository == 'ncw/gmp' || github.event.inputs.manual }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        job_name: ['go1.20', 'go1.19', 'go1.18']
+
+        include:
+          - job_name: go1.20
+            os: ubuntu-latest
+            go: '1.20.x'
+
+          - job_name: go1.19
+            os: ubuntu-latest
+            go: '1.19.x'
+
+          - job_name: go1.18
+            os: ubuntu-latest
+            go: '1.18.x'
+
+    name: ${{ matrix.job_name }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Install Libraries on Linux
+        shell: bash
+        run: |
+          sudo apt-get install libgmp-dev
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Print Go version and environment
+        shell: bash
+        run: |
+          printf "Using go at: $(which go)\n"
+          printf "Go version: $(go version)\n"
+          printf "\n\nGo environment:\n\n"
+          go env
+          printf "\n\nSystem environment:\n\n"
+          env
+
+      - name: Go module cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build
+        shell: bash
+        run: |
+          go build ./...
+
+      - name: Unit tests
+        shell: bash
+        run: |
+          go test -v
+
+      - name: Code quality test
+        uses: golangci/golangci-lint-action@v3
+        with:
+          # Optional: version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest` to use the latest version
+          version: latest
