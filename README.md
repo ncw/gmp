@@ -97,8 +97,3 @@ Authors
 
 * [The Go team](http://golang.org/AUTHORS)
 * Nick Craig-Wood <nick@craig-wood.com>
-
-Contributors
-------------
-
-* Bert Gijsbers <gijhub@gmail.com>
