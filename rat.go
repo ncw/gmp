@@ -336,7 +336,6 @@ func (z *Rat) Inv(x *Rat) *Rat {
 //	-1 if z <  0
 //	 0 if z == 0
 //	+1 if z >  0
-//
 func (z *Rat) Sign() int {
 	z.doinit()
 	return int(C.__mpq_sgn(&z.i[0]))
@@ -379,10 +378,9 @@ func (z *Rat) Denom() *Int {
 
 // Cmp compares z and y and returns:
 //
-//   -1 if z <  y
-//    0 if z == y
-//   +1 if z >  y
-//
+//	-1 if z <  y
+//	 0 if z == y
+//	+1 if z >  y
 func (z *Rat) Cmp(y *Rat) (r int) {
 	z.doinit()
 	y.doinit()

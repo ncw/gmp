@@ -779,7 +779,7 @@ func TestFloat64Distribution(t *testing.T) {
 	for _, sign := range "+-" {
 		for _, a := range add {
 			for wid := uint64(0); wid < 60; wid += winc {
-				b := int64(1<<wid + a)
+				b := 1<<wid + a
 				if sign == '-' {
 					b = -b
 				}

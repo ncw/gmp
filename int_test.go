@@ -663,11 +663,6 @@ func TestSetBytes(t *testing.T) {
 	}
 }
 
-func checkBytes(b []byte) bool {
-	b2 := new(Int).SetBytes(b).Bytes()
-	return bytes.Equal(b, b2)
-}
-
 func TestBytes(t *testing.T) {
 	if err := quick.Check(checkSetBytes, nil); err != nil {
 		t.Error(err)

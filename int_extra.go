@@ -141,9 +141,9 @@ func compared(i C.int) int {
 
 // CmpUint32 compares z and x and returns:
 //
-//   -1 if z <  x
-//    0 if z == x
-//   +1 if z >  x
+//	-1 if z <  x
+//	 0 if z == x
+//	+1 if z >  x
 //
 // NB This is not part of big.Int
 func (z *Int) CmpUint32(x uint32) int {
@@ -153,9 +153,9 @@ func (z *Int) CmpUint32(x uint32) int {
 
 // CmpInt32 compares z and x and returns:
 //
-//   -1 if z <  x
-//    0 if z == x
-//   +1 if z >  x
+//	-1 if z <  x
+//	 0 if z == x
+//	+1 if z >  x
 //
 // NB This is not part of big.Int
 func (z *Int) CmpInt32(x int32) int {
@@ -165,9 +165,9 @@ func (z *Int) CmpInt32(x int32) int {
 
 // CmpAbs compares |z| and |x| and returns:
 //
-//   -1 if |z| <  |x|
-//    0 if |z| == |x|
-//   +1 if |z| >  |x|
+//	-1 if |z| <  |x|
+//	 0 if |z| == |x|
+//	+1 if |z| >  |x|
 //
 // NB This is not part of big.Int
 func (z *Int) CmpAbs(x *Int) int {
@@ -178,9 +178,9 @@ func (z *Int) CmpAbs(x *Int) int {
 
 // CmpAbsUint32 compares |z| and |x| and returns:
 //
-//   -1 if |z| <  |x|
-//    0 if |z| == |x|
-//   +1 if |z| >  |x|
+//	-1 if |z| <  |x|
+//	 0 if |z| == |x|
+//	+1 if |z| >  |x|
 //
 // NB This is not part of big.Int
 func (z *Int) CmpAbsUint32(x uint32) int {

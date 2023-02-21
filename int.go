@@ -101,7 +101,6 @@ func (z *Int) Clear() {
 //	-1 if x <  0
 //	 0 if x == 0
 //	+1 if x >  0
-//
 func (z *Int) Sign() int {
 	z.doinit()
 	return int(C._mpz_sgn(&z.i[0]))
@@ -280,9 +279,8 @@ func (z *Int) Rem(x, y *Int) *Int {
 //	q = x/y      with the result truncated to zero
 //	r = x - y*q
 //
-// (See Daan Leijen, ``Division and Modulus for Computer Scientists''.)
+// (See Daan Leijen, “Division and Modulus for Computer Scientists”.)
 // See DivMod for Euclidean division and modulus (unlike Go).
-//
 func (z *Int) QuoRem(x, y, r *Int) (*Int, *Int) {
 	x.doinit()
 	y.doinit()
@@ -337,12 +335,11 @@ func (z *Int) Mod(x, y *Int) *Int {
 //	q = x div y  such that
 //	m = x - y*q  with 0 <= m < |q|
 //
-// (See Raymond T. Boute, ``The Euclidean definition of the functions
-// div and mod''. ACM Transactions on Programming Languages and
+// (See Raymond T. Boute, “The Euclidean definition of the functions
+// div and mod”. ACM Transactions on Programming Languages and
 // Systems (TOPLAS), 14(2):127-144, New York, NY, USA, 4/1992.
 // ACM press.)
 // See QuoRem for T-division and modulus (like Go).
-//
 func (z *Int) DivMod(x, y, m *Int) (*Int, *Int) {
 	x.doinit()
 	y.doinit()
@@ -361,10 +358,9 @@ func (z *Int) DivMod(x, y, m *Int) (*Int, *Int) {
 
 // Cmp compares z and y and returns:
 //
-//   -1 if z <  y
-//    0 if z == y
-//   +1 if z >  y
-//
+//	-1 if z <  y
+//	 0 if z == y
+//	+1 if z >  y
 func (z *Int) Cmp(y *Int) (r int) {
 	z.doinit()
 	y.doinit()
@@ -433,7 +429,6 @@ func writeMultiple(s fmt.State, text string, count int) {
 // respectively, specification of minimum digits precision,
 // output field width, space or zero padding, and left or
 // right justification.
-//
 func (z *Int) Format(s fmt.State, ch rune) {
 	base := baseForRune(ch)
 
@@ -644,9 +639,8 @@ func (z *Int) Uint64() (y uint64) {
 //
 // The base argument must be 0 or a value from 2 through MaxBase. If the base
 // is 0, the string prefix determines the actual conversion base. A prefix of
-// ``0x'' or ``0X'' selects base 16; the ``0'' prefix selects base 8, and a
-// ``0b'' or ``0B'' prefix selects base 2. Otherwise the selected base is 10.
-//
+// “0x” or “0X” selects base 16; the “0” prefix selects base 8, and a
+// “0b” or “0B” prefix selects base 2. Otherwise the selected base is 10.
 func (z *Int) SetString(s string, base int) (*Int, bool) {
 	z.doinit()
 	if base != 0 && (base < 2 || base > 36) {
