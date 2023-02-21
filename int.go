@@ -36,6 +36,9 @@ void _mpz_setbit(mpz_ptr a, unsigned long n) {
 int _mpz_sgn(mpz_t op) {
 	return mpz_sgn(op);
 }
+int _mpz_even_p(mpz_t op) {
+	return mpz_even_p(op);
+}
 */
 import "C"
 
@@ -57,20 +60,27 @@ var (
 	_Int10 = NewInt(10)
 )
 
+// mpz holds the gmp type.  This is wrapped in a go type so we can
+// attach initializers to it.
+type mpz struct {
+	i C.mpz_t
+}
+
 // An Int represents a signed multi-precision integer.
 // The zero value for an Int represents the value 0.
 type Int struct {
-	i    C.mpz_t
-	init bool
+	*mpz
 }
 
 // Finalizer - release the memory allocated to the mpz
-func intFinalize(z *Int) {
-	if z.init {
-		runtime.SetFinalizer(z, nil)
-		C.mpz_clear(&z.i[0])
-		z.init = false
-	}
+func intFinalize(z *mpz) {
+	runtime.SetFinalizer(z, nil)
+	C.mpz_clear(&z.i[0])
+}
+
+// initialized returns whether z has had doinit() called on it
+func (z *Int) initialized() bool {
+	return z.mpz != nil
 }
 
 // Int promises that the zero value is a 0, but in gmp
@@ -78,12 +88,12 @@ func intFinalize(z *Int) {
 // init bool says whether this is a valid gmp value.
 // doinit initializes z.i if it needs it.
 func (z *Int) doinit() {
-	if z.init {
+	if z.initialized() {
 		return
 	}
-	z.init = true
+	z.mpz = new(mpz)
 	C.mpz_init(&z.i[0])
-	runtime.SetFinalizer(z, intFinalize)
+	runtime.SetFinalizer(z.mpz, intFinalize)
 }
 
 // Clear the allocated space used by the number
@@ -93,7 +103,8 @@ func (z *Int) doinit() {
 //
 // NB This is not part of big.Int
 func (z *Int) Clear() {
-	intFinalize(z)
+	intFinalize(z.mpz)
+	z.mpz = nil
 }
 
 // Sign returns:
@@ -599,7 +610,7 @@ func (z *Int) Scan(s fmt.ScanState, ch rune) error {
 // Int64 returns the int64 representation of z.
 // If z cannot be represented in an int64, the result is undefined.
 func (z *Int) Int64() (y int64) {
-	if !z.init {
+	if !z.initialized() {
 		return
 	}
 	if C.mpz_fits_slong_p(&z.i[0]) != 0 {
@@ -619,7 +630,7 @@ func (z *Int) Int64() (y int64) {
 // Uint64 returns the uint64 representation of z.
 // If z cannot be represented in a uint64, the result is undefined.
 func (z *Int) Uint64() (y uint64) {
-	if !z.init {
+	if !z.initialized() {
 		return
 	}
 	if C.mpz_fits_ulong_p(&z.i[0]) != 0 {
@@ -946,4 +957,17 @@ func (z *Int) UnmarshalJSON(x []byte) error {
 		return fmt.Errorf("math/big: cannot unmarshal %s into a *gmp.Int", x)
 	}
 	return nil
+}
+
+// Jacobi returns the Jacobi symbol (x/y), either +1, -1, or 0.
+// The y argument must be an odd integer.
+func Jacobi(x, y *Int) int {
+	x.doinit()
+	y.doinit()
+
+	if C._mpz_sgn(&y.i[0]) == 0 || C._mpz_even_p(&y.i[0]) != 0 {
+		panic(fmt.Sprintf("big: invalid 2nd argument to Int.Jacobi: need odd integer but got %s", y))
+	}
+
+	return int(C.mpz_jacobi(&x.i[0], &y.i[0]))
 }
