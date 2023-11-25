@@ -40,7 +40,7 @@ Usage
 
 See here for full package docs
 
-* http://go.pkgdoc.org/github.com/ncw/gmp
+* http://godoc.org/github.com/ncw/gmp
 
 To use as in a drop in replacement for math/big, replace
 
